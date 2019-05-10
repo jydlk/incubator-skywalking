@@ -22,19 +22,18 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
 import java.util.List;
 import org.apache.skywalking.oal.tool.util.ClassMethodUtil;
-import org.apache.skywalking.oap.server.core.analysis.indicator.Indicator;
-import org.apache.skywalking.oap.server.core.analysis.indicator.annotation.*;
+import org.apache.skywalking.oap.server.core.analysis.metrics.annotation.*;
 import org.apache.skywalking.oap.server.core.storage.annotation.Column;
 
 public class DeepAnalysis {
     public AnalysisResult analysis(AnalysisResult result) {
-        // 1. Set sub package name by source.metric
+        // 1. Set sub package name by source.metrics
         result.setPackageName(result.getSourceName().toLowerCase());
 
-        Class<? extends Indicator> indicatorClass = Indicators.find(result.getAggregationFunctionName());
-        String indicatorClassSimpleName = indicatorClass.getSimpleName();
+        Class<? extends org.apache.skywalking.oap.server.core.analysis.metrics.Metrics> metricsClass = MetricsHolder.find(result.getAggregationFunctionName());
+        String metricsClassSimpleName = metricsClass.getSimpleName();
 
-        result.setIndicatorClassName(indicatorClassSimpleName);
+        result.setMetricsClassName(metricsClassSimpleName);
 
         // Optional for filter
         List<ConditionExpression> expressions = result.getFilterExpressionsParserResult();
@@ -51,14 +50,34 @@ public class DeepAnalysis {
                     filterExpression.setLeft("source." + ClassMethodUtil.toGetMethod(expression.getAttribute()) + "()");
                     filterExpression.setRight(expression.getValue());
                     result.addFilterExpressions(filterExpression);
+                } else if ("greaterMatch".equals(expression.getExpressionType())) {
+                    filterExpression.setExpressionObject("GreaterMatch");
+                    filterExpression.setLeft("source." + ClassMethodUtil.toGetMethod(expression.getAttribute()) + "()");
+                    filterExpression.setRight(expression.getValue());
+                    result.addFilterExpressions(filterExpression);
+                } else if ("lessMatch".equals(expression.getExpressionType())) {
+                    filterExpression.setExpressionObject("LessMatch");
+                    filterExpression.setLeft("source." + ClassMethodUtil.toGetMethod(expression.getAttribute()) + "()");
+                    filterExpression.setRight(expression.getValue());
+                    result.addFilterExpressions(filterExpression);
+                } else if ("greaterEqualMatch".equals(expression.getExpressionType())) {
+                    filterExpression.setExpressionObject("GreaterEqualMatch");
+                    filterExpression.setLeft("source." + ClassMethodUtil.toGetMethod(expression.getAttribute()) + "()");
+                    filterExpression.setRight(expression.getValue());
+                    result.addFilterExpressions(filterExpression);
+                } else if ("lessEqualMatch".equals(expression.getExpressionType())) {
+                    filterExpression.setExpressionObject("LessEqualMatch");
+                    filterExpression.setLeft("source." + ClassMethodUtil.toGetMethod(expression.getAttribute()) + "()");
+                    filterExpression.setRight(expression.getValue());
+                    result.addFilterExpressions(filterExpression);
                 } else {
                     throw new IllegalArgumentException("filter expression [" + expression.getExpressionType() + "] not found");
                 }
             }
         }
 
-        // 3. Find Entrance method of this indicator
-        Class c = indicatorClass;
+        // 3. Find Entrance method of this metrics
+        Class c = metricsClass;
         Method entranceMethod = null;
         SearchEntrance:
         while (!c.equals(Object.class)) {
@@ -72,7 +91,7 @@ public class DeepAnalysis {
             c = c.getSuperclass();
         }
         if (entranceMethod == null) {
-            throw new IllegalArgumentException("Can't find Entrance method in class: " + indicatorClass.getName());
+            throw new IllegalArgumentException("Can't find Entrance method in class: " + metricsClass.getName());
         }
         EntryMethod entryMethod = new EntryMethod();
         result.setEntryMethod(entryMethod);
@@ -118,8 +137,8 @@ public class DeepAnalysis {
             }
         }
 
-        // 5. Get all column declared in Indicator class.
-        c = indicatorClass;
+        // 5. Get all column declared in MetricsHolder class.
+        c = metricsClass;
         while (!c.equals(Object.class)) {
             for (Field field : c.getDeclaredFields()) {
                 Column column = field.getAnnotation(Column.class);

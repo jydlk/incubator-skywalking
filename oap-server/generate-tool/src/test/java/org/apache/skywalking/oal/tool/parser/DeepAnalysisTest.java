@@ -18,14 +18,19 @@
 
 package org.apache.skywalking.oal.tool.parser;
 
-import java.io.IOException;
+import java.io.*;
 import java.util.List;
+import org.apache.skywalking.oal.tool.meta.*;
 import org.junit.*;
 
 public class DeepAnalysisTest {
     @BeforeClass
     public static void init() throws IOException {
-        Indicators.init();
+        MetaReader reader = new MetaReader();
+        InputStream stream = MetaReaderTest.class.getResourceAsStream("/scope-meta.yml");
+        MetaSettings metaSettings = reader.read(stream);
+        SourceColumnsFactory.setSettings(metaSettings);
+        MetricsHolder.init();
     }
 
     @Test
@@ -34,7 +39,7 @@ public class DeepAnalysisTest {
         result.setSourceName("Service");
         result.setPackageName("service.serviceavg");
         result.setSourceAttribute("latency");
-        result.setMetricName("ServiceAvg");
+        result.setMetricsName("ServiceAvg");
         result.setAggregationFunctionName("longAvg");
 
         DeepAnalysis analysis = new DeepAnalysis();
@@ -58,7 +63,7 @@ public class DeepAnalysisTest {
         result.setSourceName("Endpoint");
         result.setPackageName("endpoint.endpointavg");
         result.setSourceAttribute("latency");
-        result.setMetricName("EndpointAvg");
+        result.setMetricsName("EndpointAvg");
         result.setAggregationFunctionName("longAvg");
 
         DeepAnalysis analysis = new DeepAnalysis();
@@ -82,7 +87,7 @@ public class DeepAnalysisTest {
         result.setSourceName("Endpoint");
         result.setPackageName("endpoint.endpointavg");
         result.setSourceAttribute("latency");
-        result.setMetricName("EndpointAvg");
+        result.setMetricsName("EndpointAvg");
         result.setAggregationFunctionName("longAvg");
         ConditionExpression expression = new ConditionExpression();
         expression.setExpressionType("stringMatch");

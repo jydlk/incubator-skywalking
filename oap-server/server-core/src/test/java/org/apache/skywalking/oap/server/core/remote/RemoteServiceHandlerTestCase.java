@@ -26,7 +26,7 @@ import org.apache.skywalking.oap.server.core.CoreModule;
 import org.apache.skywalking.oap.server.core.remote.annotation.StreamDataClassGetter;
 import org.apache.skywalking.oap.server.core.remote.data.StreamData;
 import org.apache.skywalking.oap.server.core.remote.grpc.proto.*;
-import org.apache.skywalking.oap.server.core.worker.*;
+import org.apache.skywalking.oap.server.core.worker.AbstractWorker;
 import org.apache.skywalking.oap.server.library.module.*;
 import org.apache.skywalking.oap.server.telemetry.TelemetryModule;
 import org.apache.skywalking.oap.server.telemetry.api.*;
@@ -58,11 +58,9 @@ public class RemoteServiceHandlerTestCase {
 
         moduleDefine.provider().registerServiceImplementation(StreamDataClassGetter.class, classGetter);
 
-        WorkerInstances.INSTANCES.put(testWorkerId, new TestWorker());
-
         String serverName = InProcessServerBuilder.generateName();
-        MetricCreator metricCreator = mock(MetricCreator.class);
-        when(metricCreator.createCounter(any(), any(), any(), any())).thenReturn(new CounterMetric() {
+        MetricsCreator metricsCreator = mock(MetricsCreator.class);
+        when(metricsCreator.createCounter(any(), any(), any(), any())).thenReturn(new CounterMetrics() {
             @Override public void inc() {
 
             }
@@ -71,8 +69,8 @@ public class RemoteServiceHandlerTestCase {
 
             }
         });
-        when(metricCreator.createHistogramMetric(any(), any(), any(), any(), any())).thenReturn(
-            new HistogramMetric() {
+        when(metricsCreator.createHistogramMetric(any(), any(), any(), any(), any())).thenReturn(
+            new HistogramMetrics() {
                 @Override public void observe(double value) {
 
                 }
@@ -80,7 +78,7 @@ public class RemoteServiceHandlerTestCase {
         );
         ModuleDefineTesting telemetryModuleDefine = new ModuleDefineTesting();
         moduleManager.put(TelemetryModule.NAME, telemetryModuleDefine);
-        telemetryModuleDefine.provider().registerServiceImplementation(MetricCreator.class, metricCreator);
+        telemetryModuleDefine.provider().registerServiceImplementation(MetricsCreator.class, metricsCreator);
 
         gRPCCleanup.register(InProcessServerBuilder
             .forName(serverName).directExecutor().addService(new RemoteServiceHandler(moduleManager)).build().start());
@@ -148,8 +146,8 @@ public class RemoteServiceHandlerTestCase {
 
     static class TestWorker extends AbstractWorker {
 
-        public TestWorker() {
-            super(1);
+        public TestWorker(ModuleDefineHolder moduleDefineHolder) {
+            super(moduleDefineHolder);
         }
 
         @Override public void in(Object o) {

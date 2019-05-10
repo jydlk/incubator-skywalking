@@ -24,7 +24,7 @@ import org.apache.skywalking.oap.server.core.CoreModule;
 import org.apache.skywalking.oap.server.core.remote.annotation.StreamDataClassGetter;
 import org.apache.skywalking.oap.server.core.remote.data.StreamData;
 import org.apache.skywalking.oap.server.core.remote.grpc.proto.*;
-import org.apache.skywalking.oap.server.core.worker.WorkerInstances;
+import org.apache.skywalking.oap.server.core.worker.IWorkerInstanceGetter;
 import org.apache.skywalking.oap.server.library.module.ModuleDefineHolder;
 import org.apache.skywalking.oap.server.library.server.grpc.GRPCHandler;
 import org.apache.skywalking.oap.server.telemetry.TelemetryModule;
@@ -44,22 +44,23 @@ public class RemoteServiceHandler extends RemoteServiceGrpc.RemoteServiceImplBas
 
     private final ModuleDefineHolder moduleDefineHolder;
     private StreamDataClassGetter streamDataClassGetter;
-    private CounterMetric remoteInCounter;
-    private CounterMetric remoteInErrorCounter;
-    private HistogramMetric remoteInHistogram;
+    private IWorkerInstanceGetter workerInstanceGetter;
+    private CounterMetrics remoteInCounter;
+    private CounterMetrics remoteInErrorCounter;
+    private HistogramMetrics remoteInHistogram;
 
     public RemoteServiceHandler(ModuleDefineHolder moduleDefineHolder) {
         this.moduleDefineHolder = moduleDefineHolder;
 
-        remoteInCounter = moduleDefineHolder.find(TelemetryModule.NAME).provider().getService(MetricCreator.class)
+        remoteInCounter = moduleDefineHolder.find(TelemetryModule.NAME).provider().getService(MetricsCreator.class)
             .createCounter("remote_in_count", "The number(server side) of inside remote inside aggregate rpc.",
-                MetricTag.EMPTY_KEY, MetricTag.EMPTY_VALUE);
-        remoteInErrorCounter = moduleDefineHolder.find(TelemetryModule.NAME).provider().getService(MetricCreator.class)
+                MetricsTag.EMPTY_KEY, MetricsTag.EMPTY_VALUE);
+        remoteInErrorCounter = moduleDefineHolder.find(TelemetryModule.NAME).provider().getService(MetricsCreator.class)
             .createCounter("remote_in_error_count", "The error number(server side) of inside remote inside aggregate rpc.",
-                MetricTag.EMPTY_KEY, MetricTag.EMPTY_VALUE);
-        remoteInHistogram = moduleDefineHolder.find(TelemetryModule.NAME).provider().getService(MetricCreator.class)
+                MetricsTag.EMPTY_KEY, MetricsTag.EMPTY_VALUE);
+        remoteInHistogram = moduleDefineHolder.find(TelemetryModule.NAME).provider().getService(MetricsCreator.class)
             .createHistogramMetric("remote_in_latency", "The latency(server side) of inside remote inside aggregate rpc.",
-                MetricTag.EMPTY_KEY, MetricTag.EMPTY_VALUE);
+                MetricsTag.EMPTY_KEY, MetricsTag.EMPTY_VALUE);
     }
 
     @Override public StreamObserver<RemoteMessage> call(StreamObserver<Empty> responseObserver) {
@@ -71,10 +72,18 @@ public class RemoteServiceHandler extends RemoteServiceGrpc.RemoteServiceImplBas
             }
         }
 
+        if (Objects.isNull(workerInstanceGetter)) {
+            synchronized (RemoteServiceHandler.class) {
+                if (Objects.isNull(workerInstanceGetter)) {
+                    workerInstanceGetter = moduleDefineHolder.find(CoreModule.NAME).provider().getService(IWorkerInstanceGetter.class);
+                }
+            }
+        }
+
         return new StreamObserver<RemoteMessage>() {
             @Override public void onNext(RemoteMessage message) {
                 remoteInCounter.inc();
-                HistogramMetric.Timer timer = remoteInHistogram.createTimer();
+                HistogramMetrics.Timer timer = remoteInHistogram.createTimer();
                 try {
                     int streamDataId = message.getStreamDataId();
                     int nextWorkerId = message.getNextWorkerId();
@@ -84,7 +93,7 @@ public class RemoteServiceHandler extends RemoteServiceGrpc.RemoteServiceImplBas
                     try {
                         StreamData streamData = streamDataClass.newInstance();
                         streamData.deserialize(remoteData);
-                        WorkerInstances.INSTANCES.get(nextWorkerId).in(streamData);
+                        workerInstanceGetter.get(nextWorkerId).in(streamData);
                     } catch (Throwable t) {
                         remoteInErrorCounter.inc();
                         logger.error(t.getMessage(), t);

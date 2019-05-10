@@ -18,23 +18,21 @@
 
 package org.apache.skywalking.oap.server.core.alarm;
 
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.Setter;
-import org.apache.skywalking.oap.server.core.source.Scope;
+import lombok.*;
+import org.apache.skywalking.oap.server.core.source.DefaultScopeDefine;
 
 @Getter(AccessLevel.PUBLIC)
 @Setter(AccessLevel.PUBLIC)
 public class ServiceInstanceMetaInAlarm extends MetaInAlarm {
-    private String indicatorName;
+    private String metricsName;
 
     private int id;
     private String name;
     private String[] tags;
     private String[] properties;
 
-    @Override public Scope getScope() {
-        return Scope.ServiceInstance;
+    @Override public int getScopeId() {
+        return DefaultScopeDefine.SERVICE_INSTANCE;
     }
 
     @Override public int getId0() {

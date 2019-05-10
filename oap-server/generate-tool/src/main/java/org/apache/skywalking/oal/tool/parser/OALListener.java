@@ -21,15 +21,18 @@ package org.apache.skywalking.oal.tool.parser;
 import java.util.List;
 import org.antlr.v4.runtime.misc.NotNull;
 import org.apache.skywalking.oal.tool.grammar.*;
+import org.apache.skywalking.oap.server.core.source.DefaultScopeDefine;
 
 public class OALListener extends OALParserBaseListener {
     private List<AnalysisResult> results;
     private AnalysisResult current;
+    private DisableCollection collection;
 
     private ConditionExpression conditionExpression;
 
-    public OALListener(List<AnalysisResult> results) {
-        this.results = results;
+    public OALListener(OALScripts scripts) {
+        this.results = scripts.getMetricsStmts();
+        this.collection = scripts.getDisableCollection();
     }
 
     @Override
@@ -46,6 +49,7 @@ public class OALListener extends OALParserBaseListener {
 
     @Override public void enterSource(OALParser.SourceContext ctx) {
         current.setSourceName(ctx.getText());
+        current.setSourceScopeId(DefaultScopeDefine.valueOf(metricsNameFormat(ctx.getText())));
     }
 
     @Override
@@ -58,7 +62,7 @@ public class OALListener extends OALParserBaseListener {
 
     @Override public void exitVariable(OALParser.VariableContext ctx) {
         current.setVarName(ctx.getText());
-        current.setMetricName(metricNameFormat(ctx.getText()));
+        current.setMetricsName(metricsNameFormat(ctx.getText()));
         current.setTableName(ctx.getText().toLowerCase());
     }
 
@@ -99,6 +103,22 @@ public class OALListener extends OALParserBaseListener {
         conditionExpression.setExpressionType("stringMatch");
     }
 
+    @Override public void enterGreaterMatch(OALParser.GreaterMatchContext ctx) {
+        conditionExpression.setExpressionType("greaterMatch");
+    }
+
+    @Override public void enterGreaterEqualMatch(OALParser.GreaterEqualMatchContext ctx) {
+        conditionExpression.setExpressionType("greaterEqualMatch");
+    }
+
+    @Override public void enterLessMatch(OALParser.LessMatchContext ctx) {
+        conditionExpression.setExpressionType("lessMatch");
+    }
+
+    @Override public void enterLessEqualMatch(OALParser.LessEqualMatchContext ctx) {
+        conditionExpression.setExpressionType("lessEqualMatch");
+    }
+
     @Override public void enterBooleanConditionValue(OALParser.BooleanConditionValueContext ctx) {
         conditionExpression.setValue(ctx.getText());
     }
@@ -111,6 +131,10 @@ public class OALListener extends OALParserBaseListener {
         conditionExpression.setValue(ctx.getText());
     }
 
+    @Override public void enterNumberConditionValue(OALParser.NumberConditionValueContext ctx) {
+        conditionExpression.setValue(ctx.getText());
+    }
+
     /////////////
     // Expression end.
     ////////////
@@ -119,13 +143,22 @@ public class OALListener extends OALParserBaseListener {
         current.addFuncArg(ctx.getText());
     }
 
-    private String metricNameFormat(String source) {
+    private String metricsNameFormat(String source) {
         source = firstLetterUpper(source);
         int idx;
         while ((idx = source.indexOf("_")) > -1) {
             source = source.substring(0, idx) + firstLetterUpper(source.substring(idx + 1));
         }
         return source;
+    }
+
+    /**
+     * Disable source
+     *
+     * @param ctx
+     */
+    @Override public void enterDisableSource(OALParser.DisableSourceContext ctx) {
+        collection.add(ctx.getText());
     }
 
     private String firstLetterUpper(String source) {
